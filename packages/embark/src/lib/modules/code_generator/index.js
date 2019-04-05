@@ -2,6 +2,7 @@ let async = require('async');
 import {joinPath} from 'embark-utils';
 const constants = require('../../constants');
 const path  = require('path');
+const {exec} = require('child_process');
 
 require('ejs');
 const Templates = {
@@ -327,14 +328,22 @@ class CodeGenerator {
         });
       },
       function generateSymlink(location, next) {
+      console.log('LOCATION', location);
         self.generateSymlink(location, 'embarkjs', (err, symlinkDest) => {
           if (err) {
             this.logger.error(__('Error creating a symlink to EmbarkJS'));
             return next(err);
           }
           embarkjsCode += `\nconst EmbarkJS = require("${symlinkDest}").default;`;
-          embarkjsCode += "\nexport default EmbarkJS;";
-          embarkjsCode += "\nglobal.EmbarkJS = EmbarkJS";
+          // embarkjsCode += `\nconst EmbarkJSNotDefault = require("${symlinkDest}");`;
+          // embarkjsCode += `\ndebugger;`;
+          // embarkjsCode += `\nmodule.exports = EmbarkJS`;
+          embarkjsCode += `\nexport default EmbarkJS;`;
+          // embarkjsCode += `\nif (typeof module !== 'undefined' && module.exports) {
+          //   module.exports = EmbarkJS;
+          // }
+          // export default EmbarkJS;`;
+          embarkjsCode += "\nglobal.EmbarkJS = EmbarkJS;";
           next();
         });
       },
@@ -352,6 +361,18 @@ class CodeGenerator {
       },
       function writeFile(next) {
         self.generateArtifact(code, constants.dappArtifacts.embarkjs, '', next);
+      },
+      function generateNodeEmbarkJS(artifactPath, next) {
+        console.log('Path', artifactPath);
+        // cross-env BABEL_ENV=node babel src --out-dir dist --root-mode upward --source-maps
+        process.env.BABEL_ENV = 'node';
+        console.log(`node C:/dev/embark/node_modules/.bin/babel ${artifactPath} --out-dir ${artifactPath + '.node.js'} --root-mode upward --source-maps`);
+        exec(`node C:/dev/embark/node_modules/.bin/babel ${artifactPath} --out-dir ${artifactPath + '.node.js'} --root-mode upward --source-maps`, (err, stdout, stderr) => {
+          console.log('err', err);
+          console.log('stdout', stdout);
+          console.log('stderr', stderr);
+          next();
+        });
       }
     ], function(_err, _result) {
       cb();
@@ -390,11 +411,12 @@ class CodeGenerator {
   }
 
   buildContractJS(contractName, contractJSON, cb) {
-    let contractCode = "import EmbarkJS from '../embarkjs';\n";
+    let contractCode = "let EmbarkJS = require('../embarkjs');\n";
+    contractCode += "EmbarkJS = EmbarkJS.default || EmbarkJS;\n";
     contractCode += `let ${contractName}JSONConfig = ${JSON.stringify(contractJSON)};\n`;
     contractCode += `let ${contractName} = new EmbarkJS.Blockchain.Contract(${contractName}JSONConfig);\n`;
 
-    contractCode += "export default " + contractName + ";\n";
+    contractCode += `module.exports = ${contractName};\n`;
 
     this.generateArtifact(contractCode, contractName + '.js', constants.dappArtifacts.contractsJs, cb);
   }

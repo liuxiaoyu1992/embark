@@ -367,7 +367,7 @@ class Pipeline {
               importsList["Embark/contracts/" + contract.className] = self.fs.dappPath(contractPath);
 
               // add the contract to the exports list to support alternate import syntax
-              importsHelperFile.write(`"${contract.className}": require('./${contract.className}').default,\n`);
+              importsHelperFile.write(`"${contract.className}": require('./${contract.className}'),\n`);
               eachCb();
             });
           }, () => {
